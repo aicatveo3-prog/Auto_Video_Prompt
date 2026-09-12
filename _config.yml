@@ -1,0 +1,19 @@
+title: "🎬 Auto Video Prompt"
+description: "AI 영상 제작 파이프라인 가이드 — 기획부터 음악까지"
+url: "https://aicatveo3-prog.github.io"
+baseurl: "/Auto_Video_Prompt"
+remote_theme: pages-themes/minimal@v0.2.0
+
+plugins:
+  - jekyll-remote-theme
+
+# 마크다운 설정
+markdown: kramdown
+kramdown:
+  input: GFM
+
+# 빌드 설정
+exclude:
+  - LICENSE
+  - Gemfile
+  - Gemfile.lock

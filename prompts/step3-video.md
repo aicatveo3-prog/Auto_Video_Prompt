@@ -1,3 +1,11 @@
+---
+layout: default
+title: "STEP 3: 이미지 투 비디오 프롬프트"
+breadcrumb:
+  - name: "프롬프트"
+  - name: "STEP 3: 비디오"
+---
+
 # 📝 STEP 3: 이미지 투 비디오 프롬프트
 
 > 이미지가 생성된 후, 이미지를 첨부하면서 이 프롬프트를 사용합니다.

@@ -1,3 +1,11 @@
+---
+layout: default
+title: "STEP 2: 이미지 생성 프롬프트"
+breadcrumb:
+  - name: "프롬프트"
+  - name: "STEP 2: 이미지"
+---
+
 # 📝 STEP 2: 이미지 생성 프롬프트
 
 > STEP 1(기획)이 완성된 후, 이 프롬프트로 각 장면의 AI 이미지 생성 프롬프트를 만듭니다.

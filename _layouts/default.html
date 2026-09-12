@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title | default: site.title }}</title>
+  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- 네비게이션 -->
+  <nav class="nav-bar">
+    <div class="nav-container">
+      <a href="{{ '/' | relative_url }}" class="nav-logo">🎬 Auto Video Prompt</a>
+      <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')">☰</button>
+      <div class="nav-links">
+        <a href="{{ '/' | relative_url }}" {% if page.url == '/' or page.url == '/index.html' %}class="active"{% endif %}>🏠 홈</a>
+        <a href="{{ '/pipeline' | relative_url }}" {% if page.url contains 'pipeline' %}class="active"{% endif %}>🔄 파이프라인</a>
+        <a href="{{ '/rules' | relative_url }}" {% if page.url contains 'rules' %}class="active"{% endif %}>📏 규칙</a>
+
+        <div class="nav-dropdown">
+          <a href="#" class="dropdown-toggle" onclick="event.preventDefault(); this.parentElement.classList.toggle('open')">📝 프롬프트 ▾</a>
+          <div class="dropdown-menu">
+            <a href="{{ '/prompts/step1-planning' | relative_url }}">STEP 1: 기획</a>
+            <a href="{{ '/prompts/step2-image' | relative_url }}">STEP 2: 이미지</a>
+            <a href="{{ '/prompts/step3-video' | relative_url }}">STEP 3: 비디오</a>
+            <a href="{{ '/prompts/step4-music' | relative_url }}">STEP 4: 음악</a>
+          </div>
+        </div>
+
+        <div class="nav-dropdown">
+          <a href="#" class="dropdown-toggle" onclick="event.preventDefault(); this.parentElement.classList.toggle('open')">💡 예시 ▾</a>
+          <div class="dropdown-menu">
+            <a href="{{ '/examples/festival-project' | relative_url }}">축제 프로젝트 전체</a>
+            <a href="{{ '/examples/planning-example' | relative_url }}">기획서 예시</a>
+            <a href="{{ '/examples/video-prompts-example' | relative_url }}">비디오 프롬프트 예시</a>
+            <a href="{{ '/examples/music-prompts-example' | relative_url }}">음악 프롬프트 예시</a>
+          </div>
+        </div>
+
+        <a href="{{ '/quickstart' | relative_url }}" {% if page.url contains 'quickstart' %}class="active"{% endif %}>🚀 빠른 시작</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 메인 콘텐츠 -->
+  <main class="main-content">
+    <div class="content-container">
+
+      {% if page.breadcrumb %}
+      <div class="breadcrumb">
+        <a href="{{ '/' | relative_url }}">🏠 홈</a>
+        {% for crumb in page.breadcrumb %}
+          <span class="separator">›</span>
+          {% if crumb.url %}
+            <a href="{{ crumb.url | relative_url }}">{{ crumb.name }}</a>
+          {% else %}
+            <span>{{ crumb.name }}</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <article class="page-content">
+        {{ content }}
+      </article>
+
+      {% if page.prev_page or page.next_page %}
+      <div class="page-nav">
+        {% if page.prev_page %}
+        <a href="{{ page.prev_page.url | relative_url }}" class="prev-link">← {{ page.prev_page.title }}</a>
+        {% endif %}
+        {% if page.next_page %}
+        <a href="{{ page.next_page.url | relative_url }}" class="next-link">{{ page.next_page.title }} →</a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+  </main>
+
+  <!-- 푸터 -->
+  <footer class="footer">
+    <div class="footer-container">
+      <p>Made with ❤️ for AI-powered video production</p>
+      <p class="footer-links">
+        <a href="https://github.com/aicatveo3-prog/Auto_Video_Prompt">GitHub</a>
+      </p>
+    </div>
+  </footer>
+
+</body>
+</html>

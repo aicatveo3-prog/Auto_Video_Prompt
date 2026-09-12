@@ -1,3 +1,10 @@
+---
+layout: default
+title: "🚀 빠른 시작"
+breadcrumb:
+  - name: "빠른 시작"
+---
+
 # 🚀 빠른 시작 — AI에게 보내는 명령어 모음
 
 > 어떤 AI 채팅(ChatGPT, Claude, Gemini 등)에서든 아래 명령어를 복사해서 사용하세요.

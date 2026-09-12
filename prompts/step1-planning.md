@@ -1,3 +1,11 @@
+---
+layout: default
+title: "STEP 1: 기획 프롬프트"
+breadcrumb:
+  - name: "프롬프트"
+  - name: "STEP 1: 기획"
+---
+
 # 📝 STEP 1: 기획 프롬프트
 
 > 이 프롬프트를 AI 채팅에 붙여넣고, 원하는 영상 주제만 입력하면 기획이 완성됩니다.

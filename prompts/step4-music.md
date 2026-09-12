@@ -1,3 +1,11 @@
+---
+layout: default
+title: "STEP 4: 음악 생성 프롬프트"
+breadcrumb:
+  - name: "프롬프트"
+  - name: "STEP 4: 음악"
+---
+
 # 📝 STEP 4: 음악 생성 프롬프트
 
 > 비디오 프롬프트까지 완성된 후, 이 프롬프트로 씬별 음악을 설계합니다.
