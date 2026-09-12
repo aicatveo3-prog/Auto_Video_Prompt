@@ -60,6 +60,12 @@ breadcrumb:
       </label>
 
       <label class="im-field">
+        <span class="im-label">마지막 장에 합치기 기준</span>
+        <input type="number" id="imMergeTail" value="4" min="0" max="63" step="1">
+        <span class="im-help">남는 수가 이 값 이하면 새 장을 만들지 않고 마지막 장에 붙입니다. 0 = 항상 나누기</span>
+      </label>
+
+      <label class="im-field">
         <span class="im-label">셀 너비 (px)</span>
         <input type="number" id="imCellW" value="0" min="0" max="4000" step="10" placeholder="0 = 자동">
         <span class="im-help">0 = 자동 (가장 큰 이미지 기준, 최대 1200px)</span>
@@ -362,7 +368,7 @@ breadcrumb:
   var bgEl = $('imBg'), bgTextEl = $('imBgText');
   var qualEl = $('imQuality'), qualLabel = $('imQualityLabel');
   var numberEl = $('imNumber'), autoEl = $('imAuto'), perSheetEl = $('imPerSheet');
-  var numSizeEl = $('imNumSize');
+  var numSizeEl = $('imNumSize'), mergeTailEl = $('imMergeTail');
 
   var MAX_AUTO_CELL = 1200;
   var MAX_CANVAS_SIDE = 16000;
@@ -437,12 +443,16 @@ breadcrumb:
 
     var cols = clampInt(colsEl.value, 1, 12, 4);
     var per = clampInt(perSheetEl.value, 0, 64, 8);
-    if (per <= 0) per = items.length;
-    var sheets = Math.ceil(items.length / per);
-    var rowsPerSheet = Math.ceil(Math.min(per, items.length) / cols);
+    var tail = clampInt(mergeTailEl.value, 0, 63, 4);
+    var sizes = planSheets(items.length, per, tail);
 
-    countEl.textContent = '이미지 ' + items.length + '장 · ' + cols + '열 × ' + rowsPerSheet + '행'
-      + (sheets > 1 ? ' · 결과 ' + sheets + '장으로 분할' : ' · 결과 1장');
+    var text = '이미지 ' + items.length + '장 · ' + cols + '열 · ';
+    if (sizes.length > 1) {
+      text += '결과 ' + sizes.length + '장 (' + sizes.join(' + ') + '장)';
+    } else {
+      text += '결과 1장 (' + Math.ceil(items.length / cols) + '행)';
+    }
+    countEl.textContent = text;
 
     items.forEach(function (it, i) {
       var el = document.createElement('div');
@@ -581,6 +591,26 @@ breadcrumb:
     return Math.max(min, Math.min(max, n));
   }
 
+  /* 몇 장으로 나눌지 계획 — 남는 소량은 마지막 장에 흡수
+     예) 33장 · 8장씩 · 기준 4  →  [8, 8, 8, 9]  */
+  function planSheets(total, perSheet, tailLimit) {
+    if (total <= 0) return [];
+    if (perSheet <= 0 || perSheet >= total) return [total];
+
+    var sizes = [];
+    for (var i = 0; i < total; i += perSheet) {
+      sizes.push(Math.min(perSheet, total - i));
+    }
+
+    var last = sizes.length - 1;
+    if (sizes.length > 1 && tailLimit > 0 && sizes[last] <= tailLimit) {
+      sizes[last - 1] += sizes[last];
+      sizes.pop();
+    }
+
+    return sizes;
+  }
+
   function formatBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -621,14 +651,17 @@ breadcrumb:
     }
     cfg.cellW = Math.max(20, cellW);
 
-    // 한 장당 이미지 수로 분할
+    // 한 장당 이미지 수로 분할 (남는 소량은 마지막 장에 흡수)
     var perSheet = clampInt(perSheetEl.value, 0, 64, 8);
-    if (perSheet <= 0) perSheet = items.length;
+    var tailLimit = clampInt(mergeTailEl.value, 0, 63, 4);
+    var sizes = planSheets(items.length, perSheet, tailLimit);
 
     var chunks = [];
-    for (var i = 0; i < items.length; i += perSheet) {
-      chunks.push({ list: items.slice(i, i + perSheet), start: i });
-    }
+    var cursor = 0;
+    sizes.forEach(function (n) {
+      chunks.push({ list: items.slice(cursor, cursor + n), start: cursor });
+      cursor += n;
+    });
 
     // 이전 결과 정리
     results.forEach(function (r) { if (r.url) URL.revokeObjectURL(r.url); });
@@ -685,7 +718,7 @@ breadcrumb:
       metaEl.innerHTML =
         '<span>결과 <strong>' + results.length + '장</strong></span>' +
         '<span>원본 이미지 <strong>' + items.length + '장</strong></span>' +
-        '<span>한 장당 <strong>' + cfg.cols + '열 × 최대 ' + Math.ceil(perSheet / cfg.cols) + '행</strong></span>' +
+        '<span>장별 구성 <strong>' + sizes.join(' + ') + '장</strong></span>' +
         '<span>전체 용량 <strong>' + formatBytes(totalBytes) + '</strong></span>';
 
       setStatus(results.length > 1
@@ -994,6 +1027,7 @@ breadcrumb:
 
   colsEl.addEventListener('change', function () { render(); onSettingChange(); });
   perSheetEl.addEventListener('change', function () { render(); onSettingChange(); });
+  mergeTailEl.addEventListener('change', function () { render(); onSettingChange(); });
   [cellWEl, fitEl, gapEl, padEl, numberEl, numSizeEl].forEach(function (el) {
     el.addEventListener('change', onSettingChange);
   });
@@ -1030,6 +1064,7 @@ breadcrumb:
   <tbody>
     <tr><td><strong>한 줄에 몇 개</strong></td><td>가로로 배치할 이미지 수 (기본 4개)</td></tr>
     <tr><td><strong>한 장당 이미지 수</strong></td><td>한 시트에 담을 이미지 수 (기본 8개 = 4열 × 2행). 넘으면 자동으로 여러 장으로 분할. <code>0</code>이면 전체를 한 장에</td></tr>
+    <tr><td><strong>마지막 장에 합치기 기준</strong></td><td>마지막에 남는 이미지가 이 값 <strong>이하</strong>면 새 장을 만들지 않고 <strong>마지막 장에 붙입니다</strong> (기본 4개).<br>예) 33장 · 8장씩 · 기준 4 → <code>8 + 8 + 8 + 9</code> (1장만 남는 5번째 장을 만들지 않음).<br><code>0</code>이면 항상 8장씩 정확히 나눕니다.</td></tr>
     <tr><td><strong>셀 너비</strong></td><td>각 이미지 칸의 너비. <code>0</code>이면 자동 (가장 큰 이미지 기준, 최대 1200px)</td></tr>
     <tr><td><strong>셀 비율 = 자동</strong></td><td>원본 비율을 그대로 유지. 행마다 높이가 자동으로 맞춰짐 <strong>(권장)</strong></td></tr>
     <tr><td><strong>셀 비율 = 16:9 등</strong></td><td>모든 칸을 같은 비율로 통일. 크기가 다른 이미지를 격자로 깔끔하게 정렬할 때</td></tr>
