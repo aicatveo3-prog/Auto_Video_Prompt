@@ -1,0 +1,859 @@
+---
+layout: default
+title: "🖼️ 이미지 합치기 도구"
+breadcrumb:
+  - name: "도구"
+  - name: "이미지 합치기"
+---
+
+<h1>🖼️ 이미지 합치기</h1>
+
+<blockquote>
+  <p>여러 이미지를 업로드하면 <strong>한 줄에 4개</strong>씩 배치해 아래로 이어붙인 뒤 <strong>JPG 한 장</strong>으로 저장합니다.<br>
+  모든 처리는 <strong>내 브라우저 안에서만</strong> 실행됩니다. 이미지가 서버로 전송되지 않습니다.</p>
+</blockquote>
+
+<div class="im-tool">
+
+  <!-- 1. 업로드 -->
+  <section class="im-card">
+    <h2 class="im-card-title">1️⃣ 이미지 업로드</h2>
+
+    <div id="imDrop" class="im-drop">
+      <div class="im-drop-icon">📂</div>
+      <div class="im-drop-text">
+        <strong>클릭해서 이미지 선택</strong> 또는 <strong>여기로 드래그 &amp; 드롭</strong>
+      </div>
+      <div class="im-drop-sub">JPG · PNG · WEBP · GIF · 여러 장 동시 선택 가능</div>
+      <input type="file" id="imFiles" accept="image/*" multiple hidden>
+    </div>
+
+    <div class="im-row im-row-between">
+      <div id="imCount" class="im-muted">아직 업로드된 이미지가 없습니다.</div>
+      <div class="im-btn-group">
+        <button type="button" class="im-btn im-btn-ghost" id="imSortName">이름순 정렬</button>
+        <button type="button" class="im-btn im-btn-ghost" id="imClear">전체 삭제</button>
+      </div>
+    </div>
+
+    <div id="imList" class="im-list"></div>
+    <p id="imOrderHint" class="im-hint" hidden>
+      💡 썸네일을 <strong>드래그</strong>하거나 <strong>◀ ▶</strong> 버튼으로 순서를 바꿀 수 있습니다.
+    </p>
+  </section>
+
+  <!-- 2. 설정 -->
+  <section class="im-card">
+    <h2 class="im-card-title">2️⃣ 배치 설정</h2>
+
+    <div class="im-grid">
+      <label class="im-field">
+        <span class="im-label">한 줄에 몇 개 <em>(가로 개수)</em></span>
+        <input type="number" id="imCols" value="4" min="1" max="12" step="1">
+      </label>
+
+      <label class="im-field">
+        <span class="im-label">셀 너비 (px)</span>
+        <input type="number" id="imCellW" value="0" min="0" max="4000" step="10" placeholder="0 = 자동">
+        <span class="im-help">0 = 자동 (가장 큰 이미지 기준, 최대 1200px)</span>
+      </label>
+
+      <label class="im-field">
+        <span class="im-label">셀 비율</span>
+        <select id="imRatio">
+          <option value="auto" selected>자동 (원본 비율, 행마다 높이 맞춤)</option>
+          <option value="16:9">16:9 (가로형)</option>
+          <option value="9:16">9:16 (세로형)</option>
+          <option value="1:1">1:1 (정사각형)</option>
+          <option value="4:3">4:3</option>
+          <option value="3:4">3:4</option>
+        </select>
+      </label>
+
+      <label class="im-field" id="imFitField" hidden>
+        <span class="im-label">맞춤 방식</span>
+        <select id="imFit">
+          <option value="cover" selected>꽉 채우기 (일부 잘림)</option>
+          <option value="contain">비율 유지 (여백 생김)</option>
+        </select>
+      </label>
+
+      <label class="im-field">
+        <span class="im-label">이미지 사이 간격 (px)</span>
+        <input type="number" id="imGap" value="8" min="0" max="200" step="1">
+      </label>
+
+      <label class="im-field">
+        <span class="im-label">바깥 여백 (px)</span>
+        <input type="number" id="imPad" value="8" min="0" max="200" step="1">
+      </label>
+
+      <label class="im-field">
+        <span class="im-label">배경색</span>
+        <span class="im-color-wrap">
+          <input type="color" id="imBg" value="#ffffff">
+          <input type="text" id="imBgText" value="#ffffff" spellcheck="false">
+        </span>
+      </label>
+
+      <label class="im-field">
+        <span class="im-label">JPG 품질 <em id="imQualityLabel">92%</em></span>
+        <input type="range" id="imQuality" value="92" min="50" max="100" step="1">
+      </label>
+    </div>
+
+    <div class="im-checks">
+      <label class="im-check">
+        <input type="checkbox" id="imNumber">
+        <span>순번 표시 (좌측 상단에 1, 2, 3… 번호 넣기)</span>
+      </label>
+      <label class="im-check">
+        <input type="checkbox" id="imAuto" checked>
+        <span>설정을 바꾸면 자동으로 다시 합치기</span>
+      </label>
+    </div>
+
+    <div class="im-btn-group im-btn-group-lg">
+      <button type="button" class="im-btn im-btn-primary" id="imMerge">🔗 이미지 합치기</button>
+      <button type="button" class="im-btn im-btn-accent" id="imDownload" disabled>⬇️ JPG 다운로드</button>
+    </div>
+
+    <div id="imStatus" class="im-status" hidden></div>
+  </section>
+
+  <!-- 3. 결과 -->
+  <section class="im-card">
+    <h2 class="im-card-title">3️⃣ 결과 미리보기</h2>
+    <div id="imResultMeta" class="im-meta" hidden></div>
+    <div id="imPreview" class="im-preview">
+      <div class="im-preview-empty">이미지를 업로드하고 <strong>🔗 이미지 합치기</strong>를 눌러주세요.</div>
+    </div>
+  </section>
+
+</div>
+
+<style>
+/* ── 이미지 합치기 도구 스타일 ─────────────────── */
+.im-tool { margin-top: 8px; }
+
+.im-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px 22px;
+  margin-bottom: 20px;
+}
+.im-card-title {
+  font-size: 1.05rem !important;
+  font-weight: 600;
+  color: var(--primary-light) !important;
+  margin: 0 0 16px !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+/* 드롭존 */
+.im-drop {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: rgba(108, 92, 231, .05);
+}
+.im-drop:hover, .im-drop.is-over {
+  border-color: var(--primary);
+  background: rgba(108, 92, 231, .14);
+}
+.im-drop-icon { font-size: 2rem; margin-bottom: 8px; }
+.im-drop-text { font-size: .95rem; color: var(--text); margin-bottom: 4px; }
+.im-drop-sub  { font-size: .8rem; color: var(--text-muted); }
+
+/* 공통 레이아웃 */
+.im-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.im-row-between { justify-content: space-between; margin-top: 14px; }
+.im-muted { color: var(--text-muted); font-size: .85rem; }
+.im-hint  { color: var(--text-muted); font-size: .8rem; margin: 10px 0 0; }
+
+/* 버튼 */
+.im-btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.im-btn-group-lg { margin-top: 18px; }
+.im-btn {
+  font-family: inherit; font-size: .88rem; font-weight: 500;
+  padding: 9px 16px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--code-bg); color: var(--text);
+  transition: all .2s;
+}
+.im-btn:hover:not(:disabled) { border-color: var(--primary); background: rgba(108,92,231,.18); }
+.im-btn:disabled { opacity: .45; cursor: not-allowed; }
+.im-btn-primary {
+  background: var(--primary); border-color: var(--primary); color: #fff;
+  padding: 11px 22px; font-size: .95rem; font-weight: 600;
+}
+.im-btn-primary:hover:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); }
+.im-btn-accent {
+  background: var(--success); border-color: var(--success); color: #06281f;
+  padding: 11px 22px; font-size: .95rem; font-weight: 600;
+}
+.im-btn-accent:hover:not(:disabled) { filter: brightness(1.1); }
+.im-btn-ghost { padding: 7px 12px; font-size: .8rem; }
+
+/* 썸네일 목록 */
+.im-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.im-item {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--code-bg);
+  cursor: grab;
+}
+.im-item.is-drag { opacity: .4; }
+.im-item.is-target { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(253,121,168,.35); }
+.im-item-thumb {
+  width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block;
+  background: #000; pointer-events: none;
+}
+.im-item-idx {
+  position: absolute; top: 6px; left: 6px;
+  background: var(--primary); color: #fff;
+  font-size: .72rem; font-weight: 700;
+  min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.im-item-del {
+  position: absolute; top: 5px; right: 5px;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: none; cursor: pointer;
+  background: rgba(255,118,117,.92); color: #fff;
+  font-size: .8rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.im-item-del:hover { background: #ff5252; }
+.im-item-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 6px; gap: 4px;
+}
+.im-item-move {
+  border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; font-size: .8rem; padding: 2px 6px; border-radius: 5px;
+}
+.im-item-move:hover { color: var(--primary-light); background: rgba(108,92,231,.16); }
+.im-item-name {
+  font-size: .66rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: center;
+}
+
+/* 설정 폼 */
+.im-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.im-field { display: flex; flex-direction: column; gap: 6px; }
+.im-label { font-size: .84rem; font-weight: 500; color: var(--text); }
+.im-label em { color: var(--text-muted); font-style: normal; font-weight: 400; font-size: .78rem; }
+.im-help { font-size: .72rem; color: var(--text-muted); }
+.im-field input[type="number"],
+.im-field input[type="text"],
+.im-field select {
+  font-family: inherit; font-size: .88rem;
+  padding: 9px 11px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--code-bg); color: var(--text);
+  width: 100%;
+}
+.im-field input:focus, .im-field select:focus { outline: none; border-color: var(--primary); }
+.im-field input[type="range"] { width: 100%; accent-color: var(--primary); }
+.im-color-wrap { display: flex; gap: 8px; align-items: center; }
+.im-color-wrap input[type="color"] {
+  width: 46px; height: 38px; padding: 2px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--code-bg);
+}
+
+.im-checks { display: flex; flex-direction: column; gap: 9px; margin-top: 18px; }
+.im-check { display: flex; align-items: center; gap: 8px; font-size: .85rem; cursor: pointer; }
+.im-check input { accent-color: var(--primary); width: 15px; height: 15px; cursor: pointer; }
+
+/* 상태 메시지 */
+.im-status {
+  margin-top: 14px; padding: 11px 14px; border-radius: 8px;
+  font-size: .85rem; border-left: 3px solid var(--primary);
+  background: rgba(108,92,231,.12);
+}
+.im-status.is-warn { border-left-color: var(--warning); background: rgba(253,203,110,.12); }
+.im-status.is-error { border-left-color: var(--danger); background: rgba(255,118,117,.12); }
+.im-status.is-ok { border-left-color: var(--success); background: rgba(0,184,148,.12); }
+
+/* 결과 */
+.im-meta {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  font-size: .82rem; color: var(--text-muted); margin-bottom: 14px;
+}
+.im-meta strong { color: var(--text); font-weight: 600; }
+.im-preview {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--code-bg); padding: 14px;
+  max-height: 640px; overflow: auto; text-align: center;
+}
+.im-preview canvas, .im-preview img { max-width: 100%; height: auto; border-radius: 6px; display: inline-block; }
+.im-preview-empty { color: var(--text-muted); font-size: .85rem; padding: 40px 10px; }
+
+@media (max-width: 600px) {
+  .im-card { padding: 16px 14px 18px; }
+  .im-list { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 9px; }
+}
+</style>
+
+{% raw %}
+<script>
+(function () {
+  'use strict';
+
+  var items = [];        // { id, name, img, w, h, url }
+  var seq = 0;
+  var resultBlob = null;
+  var resultCanvas = null;
+  var dragId = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var drop = $('imDrop'), fileInput = $('imFiles'), list = $('imList');
+  var countEl = $('imCount'), orderHint = $('imOrderHint');
+  var statusEl = $('imStatus'), metaEl = $('imResultMeta'), previewEl = $('imPreview');
+  var mergeBtn = $('imMerge'), dlBtn = $('imDownload');
+  var colsEl = $('imCols'), cellWEl = $('imCellW'), ratioEl = $('imRatio');
+  var fitEl = $('imFit'), fitField = $('imFitField');
+  var gapEl = $('imGap'), padEl = $('imPad');
+  var bgEl = $('imBg'), bgTextEl = $('imBgText');
+  var qualEl = $('imQuality'), qualLabel = $('imQualityLabel');
+  var numberEl = $('imNumber'), autoEl = $('imAuto');
+
+  var MAX_AUTO_CELL = 1200;
+  var MAX_CANVAS_SIDE = 16000;
+
+  /* ── 상태 메시지 ───────────────────────── */
+  function setStatus(msg, kind) {
+    if (!msg) { statusEl.hidden = true; return; }
+    statusEl.hidden = false;
+    statusEl.textContent = msg;
+    statusEl.className = 'im-status' + (kind ? ' is-' + kind : '');
+  }
+
+  /* ── 파일 읽기 ─────────────────────────── */
+  function addFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList).filter(function (f) {
+      return f.type && f.type.indexOf('image/') === 0;
+    });
+    if (!files.length) {
+      setStatus('이미지 파일이 아닙니다. JPG, PNG, WEBP, GIF 파일을 선택해주세요.', 'error');
+      return;
+    }
+
+    files.sort(function (a, b) {
+      return a.name.localeCompare(b.name, 'ko', { numeric: true });
+    });
+
+    setStatus('이미지 ' + files.length + '장을 읽는 중…');
+
+    var pending = files.length;
+    files.forEach(function (file) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        items.push({
+          id: ++seq, name: file.name, img: img,
+          w: img.naturalWidth, h: img.naturalHeight, url: url
+        });
+        done();
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        done();
+      };
+      img.src = url;
+    });
+
+    function done() {
+      pending--;
+      if (pending > 0) return;
+      items.sort(function (a, b) {
+        return a.name.localeCompare(b.name, 'ko', { numeric: true });
+      });
+      render();
+      setStatus('이미지 ' + items.length + '장 준비 완료. 설정을 확인하고 합치기를 눌러주세요.', 'ok');
+      if (autoEl.checked) merge();
+    }
+  }
+
+  /* ── 썸네일 목록 렌더 ───────────────────── */
+  function render() {
+    list.innerHTML = '';
+
+    if (!items.length) {
+      countEl.textContent = '아직 업로드된 이미지가 없습니다.';
+      orderHint.hidden = true;
+      mergeBtn.disabled = true;
+      return;
+    }
+
+    mergeBtn.disabled = false;
+    orderHint.hidden = false;
+
+    var cols = clampInt(colsEl.value, 1, 12, 4);
+    var rows = Math.ceil(items.length / cols);
+    countEl.textContent = '이미지 ' + items.length + '장 · ' + cols + '열 × ' + rows + '행으로 배치됩니다.';
+
+    items.forEach(function (it, i) {
+      var el = document.createElement('div');
+      el.className = 'im-item';
+      el.draggable = true;
+      el.dataset.id = String(it.id);
+
+      var thumb = document.createElement('img');
+      thumb.className = 'im-item-thumb';
+      thumb.src = it.url;
+      thumb.alt = it.name;
+
+      var idx = document.createElement('span');
+      idx.className = 'im-item-idx';
+      idx.textContent = String(i + 1);
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'im-item-del';
+      del.textContent = '✕';
+      del.title = '삭제';
+      del.addEventListener('click', function (e) {
+        e.stopPropagation();
+        remove(it.id);
+      });
+
+      var bar = document.createElement('div');
+      bar.className = 'im-item-bar';
+
+      var left = document.createElement('button');
+      left.type = 'button';
+      left.className = 'im-item-move';
+      left.textContent = '◀';
+      left.title = '앞으로';
+      left.disabled = (i === 0);
+      left.addEventListener('click', function () { move(i, i - 1); });
+
+      var name = document.createElement('span');
+      name.className = 'im-item-name';
+      name.textContent = it.w + '×' + it.h;
+      name.title = it.name;
+
+      var right = document.createElement('button');
+      right.type = 'button';
+      right.className = 'im-item-move';
+      right.textContent = '▶';
+      right.title = '뒤로';
+      right.disabled = (i === items.length - 1);
+      right.addEventListener('click', function () { move(i, i + 1); });
+
+      bar.appendChild(left);
+      bar.appendChild(name);
+      bar.appendChild(right);
+
+      el.appendChild(thumb);
+      el.appendChild(idx);
+      el.appendChild(del);
+      el.appendChild(bar);
+
+      el.addEventListener('dragstart', function () {
+        dragId = it.id;
+        el.classList.add('is-drag');
+      });
+      el.addEventListener('dragend', function () {
+        dragId = null;
+        el.classList.remove('is-drag');
+        Array.prototype.forEach.call(list.children, function (c) { c.classList.remove('is-target'); });
+      });
+      el.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        if (dragId !== null && dragId !== it.id) el.classList.add('is-target');
+      });
+      el.addEventListener('dragleave', function () { el.classList.remove('is-target'); });
+      el.addEventListener('drop', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        el.classList.remove('is-target');
+        if (dragId === null) return;
+        var from = indexOfId(dragId);
+        var to = indexOfId(it.id);
+        if (from < 0 || to < 0 || from === to) return;
+        var moved = items.splice(from, 1)[0];
+        items.splice(to, 0, moved);
+        render();
+        if (autoEl.checked) merge();
+      });
+
+      list.appendChild(el);
+    });
+  }
+
+  function indexOfId(id) {
+    for (var i = 0; i < items.length; i++) if (items[i].id === id) return i;
+    return -1;
+  }
+
+  function move(from, to) {
+    if (to < 0 || to >= items.length) return;
+    var moved = items.splice(from, 1)[0];
+    items.splice(to, 0, moved);
+    render();
+    if (autoEl.checked) merge();
+  }
+
+  function remove(id) {
+    var i = indexOfId(id);
+    if (i < 0) return;
+    URL.revokeObjectURL(items[i].url);
+    items.splice(i, 1);
+    render();
+    if (items.length && autoEl.checked) merge();
+    else if (!items.length) clearResult();
+  }
+
+  function clearAll() {
+    items.forEach(function (it) { URL.revokeObjectURL(it.url); });
+    items = [];
+    render();
+    clearResult();
+    setStatus('');
+  }
+
+  function clearResult() {
+    resultBlob = null;
+    resultCanvas = null;
+    dlBtn.disabled = true;
+    metaEl.hidden = true;
+    previewEl.innerHTML = '<div class="im-preview-empty">이미지를 업로드하고 <strong>🔗 이미지 합치기</strong>를 눌러주세요.</div>';
+  }
+
+  /* ── 유틸 ──────────────────────────────── */
+  function clampInt(v, min, max, fallback) {
+    var n = parseInt(v, 10);
+    if (isNaN(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+  }
+
+  function timestamp() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
+  }
+
+  /* ── 합치기 ────────────────────────────── */
+  function merge() {
+    if (!items.length) {
+      setStatus('먼저 이미지를 업로드해주세요.', 'error');
+      return;
+    }
+
+    var cols = clampInt(colsEl.value, 1, 12, 4);
+    var gap = clampInt(gapEl.value, 0, 200, 8);
+    var pad = clampInt(padEl.value, 0, 200, 8);
+    var bg = bgEl.value || '#ffffff';
+    var ratio = ratioEl.value;
+    var fit = fitEl.value;
+    var showNum = numberEl.checked;
+
+    // 셀 너비 결정
+    var cellW = clampInt(cellWEl.value, 0, 4000, 0);
+    if (cellW <= 0) {
+      cellW = 0;
+      items.forEach(function (it) { if (it.w > cellW) cellW = it.w; });
+      cellW = Math.min(cellW, MAX_AUTO_CELL);
+    }
+    if (cellW < 20) cellW = 20;
+
+    var rows = Math.ceil(items.length / cols);
+    var rowHeights = [];
+    var fixedCellH = 0;
+
+    if (ratio === 'auto') {
+      // 행별로: 각 이미지를 셀 너비에 맞춰 축소했을 때의 최대 높이
+      for (var r = 0; r < rows; r++) {
+        var maxH = 0;
+        for (var c = 0; c < cols; c++) {
+          var it = items[r * cols + c];
+          if (!it) continue;
+          var h = Math.round(cellW * (it.h / it.w));
+          if (h > maxH) maxH = h;
+        }
+        rowHeights.push(maxH || Math.round(cellW * 0.5625));
+      }
+    } else {
+      var parts = ratio.split(':');
+      var rw = parseFloat(parts[0]), rh = parseFloat(parts[1]);
+      fixedCellH = Math.round(cellW * (rh / rw));
+      for (var r2 = 0; r2 < rows; r2++) rowHeights.push(fixedCellH);
+    }
+
+    var totalW = pad * 2 + cellW * cols + gap * (cols - 1);
+    var totalH = pad * 2 + gap * (rows - 1);
+    rowHeights.forEach(function (h) { totalH += h; });
+
+    if (totalW > MAX_CANVAS_SIDE || totalH > MAX_CANVAS_SIDE) {
+      setStatus(
+        '결과 이미지가 너무 큽니다 (' + totalW + '×' + totalH + 'px). ' +
+        '셀 너비를 줄이거나 이미지 수를 줄여주세요. (한 변 최대 ' + MAX_CANVAS_SIDE + 'px)',
+        'error'
+      );
+      return;
+    }
+
+    setStatus('이미지를 합치는 중…');
+
+    var canvas = document.createElement('canvas');
+    canvas.width = totalW;
+    canvas.height = totalH;
+    var ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    // 배경 (JPG는 투명을 지원하지 않으므로 항상 채움)
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, totalW, totalH);
+
+    var y = pad;
+    for (var row = 0; row < rows; row++) {
+      var cellH = rowHeights[row];
+      var x = pad;
+
+      for (var col = 0; col < cols; col++) {
+        var item = items[row * cols + col];
+        if (item) {
+          drawCell(ctx, item, x, y, cellW, cellH, ratio, fit);
+          if (showNum) drawNumber(ctx, row * cols + col + 1, x, y, cellW);
+        }
+        x += cellW + gap;
+      }
+      y += cellH + gap;
+    }
+
+    var quality = clampInt(qualEl.value, 50, 100, 92) / 100;
+
+    canvas.toBlob(function (blob) {
+      if (!blob) {
+        setStatus('이미지 생성에 실패했습니다. 셀 너비를 줄여서 다시 시도해주세요.', 'error');
+        return;
+      }
+      resultBlob = blob;
+      resultCanvas = canvas;
+      dlBtn.disabled = false;
+
+      previewEl.innerHTML = '';
+      var img = new Image();
+      img.alt = '합쳐진 이미지 미리보기';
+      img.src = URL.createObjectURL(blob);
+      previewEl.appendChild(img);
+
+      metaEl.hidden = false;
+      metaEl.innerHTML =
+        '<span>크기 <strong>' + totalW + ' × ' + totalH + ' px</strong></span>' +
+        '<span>배치 <strong>' + cols + '열 × ' + rows + '행</strong></span>' +
+        '<span>이미지 <strong>' + items.length + '장</strong></span>' +
+        '<span>용량 <strong>' + formatBytes(blob.size) + '</strong></span>';
+
+      setStatus('완성! 아래에서 확인하고 JPG로 다운로드하세요.', 'ok');
+    }, 'image/jpeg', quality);
+  }
+
+  function drawCell(ctx, item, x, y, cellW, cellH, ratio, fit) {
+    var iw = item.w, ih = item.h;
+
+    if (ratio === 'auto' || fit === 'contain') {
+      // 비율 유지 — 셀 안에 완전히 들어가게, 가운데 정렬
+      var scale = Math.min(cellW / iw, cellH / ih);
+      var dw = Math.round(iw * scale);
+      var dh = Math.round(ih * scale);
+      var dx = x + Math.round((cellW - dw) / 2);
+      var dy = y + Math.round((cellH - dh) / 2);
+      ctx.drawImage(item.img, dx, dy, dw, dh);
+    } else {
+      // 꽉 채우기 — 셀을 덮도록 확대 후 가운데 기준 크롭
+      var s = Math.max(cellW / iw, cellH / ih);
+      var sw = cellW / s;
+      var sh = cellH / s;
+      var sx = (iw - sw) / 2;
+      var sy = (ih - sh) / 2;
+      ctx.drawImage(item.img, sx, sy, sw, sh, x, y, cellW, cellH);
+    }
+  }
+
+  function drawNumber(ctx, num, x, y, cellW) {
+    var size = Math.max(16, Math.round(cellW * 0.075));
+    var padX = Math.round(size * 0.45);
+    var padY = Math.round(size * 0.28);
+    var label = String(num);
+
+    ctx.save();
+    ctx.font = '700 ' + size + 'px "Noto Sans KR", sans-serif';
+    ctx.textBaseline = 'top';
+    var tw = ctx.measureText(label).width;
+    var bw = tw + padX * 2;
+    var bh = size + padY * 2;
+    var bx = x + Math.round(size * 0.4);
+    var by = y + Math.round(size * 0.4);
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.62)';
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, Math.round(bh / 2));
+      ctx.fill();
+    } else {
+      ctx.fillRect(bx, by, bw, bh);
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(label, bx + padX, by + padY);
+    ctx.restore();
+  }
+
+  /* ── 다운로드 ──────────────────────────── */
+  function download() {
+    if (!resultBlob) return;
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(resultBlob);
+    a.download = 'merged-' + timestamp() + '.jpg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 3000);
+  }
+
+  /* ── 이벤트 연결 ───────────────────────── */
+  drop.addEventListener('click', function () { fileInput.click(); });
+  fileInput.addEventListener('change', function () {
+    if (fileInput.files && fileInput.files.length) addFiles(fileInput.files);
+    fileInput.value = '';
+  });
+
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) {
+      e.preventDefault();
+      drop.classList.add('is-over');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) {
+      e.preventDefault();
+      drop.classList.remove('is-over');
+    });
+  });
+  drop.addEventListener('drop', function (e) {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+      addFiles(e.dataTransfer.files);
+    }
+  });
+
+  // 페이지 전체에서 파일이 브라우저 기본 동작으로 열리는 것 방지
+  ['dragover', 'drop'].forEach(function (ev) {
+    window.addEventListener(ev, function (e) {
+      if (e.target === drop || drop.contains(e.target)) return;
+      e.preventDefault();
+    });
+  });
+
+  mergeBtn.addEventListener('click', merge);
+  dlBtn.addEventListener('click', download);
+  $('imClear').addEventListener('click', clearAll);
+  $('imSortName').addEventListener('click', function () {
+    items.sort(function (a, b) { return a.name.localeCompare(b.name, 'ko', { numeric: true }); });
+    render();
+    if (autoEl.checked) merge();
+  });
+
+  ratioEl.addEventListener('change', function () {
+    fitField.hidden = (ratioEl.value === 'auto');
+    onSettingChange();
+  });
+
+  qualEl.addEventListener('input', function () {
+    qualLabel.textContent = qualEl.value + '%';
+  });
+  qualEl.addEventListener('change', onSettingChange);
+
+  bgEl.addEventListener('input', function () {
+    bgTextEl.value = bgEl.value;
+    onSettingChange();
+  });
+  bgTextEl.addEventListener('change', function () {
+    var v = bgTextEl.value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+      bgEl.value = v;
+      onSettingChange();
+    } else {
+      bgTextEl.value = bgEl.value;
+    }
+  });
+
+  colsEl.addEventListener('change', function () { render(); onSettingChange(); });
+  [cellWEl, fitEl, gapEl, padEl, numberEl].forEach(function (el) {
+    el.addEventListener('change', onSettingChange);
+  });
+
+  function onSettingChange() {
+    if (items.length && autoEl.checked) merge();
+  }
+
+  render();
+})();
+</script>
+{% endraw %}
+
+---
+
+## 📖 사용 방법
+
+1. **이미지 업로드** — 클릭해서 선택하거나 드래그 &amp; 드롭 (여러 장 한 번에 가능)
+2. **순서 확인** — 썸네일을 드래그하거나 ◀ ▶ 버튼으로 순서 조정
+3. **설정 조정** — 한 줄에 몇 개(기본 4개), 간격, 배경색 등
+4. **🔗 이미지 합치기** 클릭
+5. **⬇️ JPG 다운로드** 클릭
+
+---
+
+## ⚙️ 설정 설명
+
+| 설정 | 설명 |
+|------|------|
+| **한 줄에 몇 개** | 가로로 배치할 이미지 수 (기본 4개) |
+| **셀 너비** | 각 이미지 칸의 너비. `0`이면 자동 (가장 큰 이미지 기준, 최대 1200px) |
+| **셀 비율 = 자동** | 원본 비율을 그대로 유지. 행마다 높이가 자동으로 맞춰짐 **(권장)** |
+| **셀 비율 = 16:9 등** | 모든 칸을 같은 비율로 통일. 크기가 다른 이미지를 격자로 깔끔하게 정렬할 때 |
+| **꽉 채우기** | 칸을 가득 채우되 가장자리가 일부 잘림 |
+| **비율 유지** | 이미지 전체가 보이되 여백이 생김 |
+| **순번 표시** | 좌측 상단에 1, 2, 3… 번호 표시 — **스토리보드 정리에 유용** |
+
+---
+
+## 💡 활용 팁
+
+- **스토리보드 만들기** — 생성한 이미지를 순서대로 올리고 `순번 표시`를 켜면 장면 순서를 한눈에 볼 수 있는 시트가 됩니다
+- **AI에게 한 번에 보여주기** — 이미지 13장을 따로 첨부하는 대신 합쳐서 1장으로 올리면 AI가 전체 흐름을 파악하기 쉽습니다
+- **캐릭터 일관성 확인** — 같은 캐릭터가 나온 이미지를 모아 합치면 외형이 어긋난 부분을 바로 찾을 수 있습니다
+- **비교용 시트** — 같은 장면의 A / B / C 버전을 나란히 놓고 고를 때
+
+---
+
+## 🔒 개인정보
+
+이 도구는 **JavaScript Canvas API**로 브라우저 안에서만 동작합니다.  
+업로드한 이미지는 **서버로 전송되지 않으며**, 저장되지도 않습니다. 페이지를 닫으면 모두 사라집니다.
