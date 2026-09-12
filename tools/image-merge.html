@@ -107,12 +107,23 @@ breadcrumb:
         <span class="im-label">JPG 품질 <em id="imQualityLabel">92%</em></span>
         <input type="range" id="imQuality" value="92" min="50" max="100" step="1">
       </label>
+
+      <label class="im-field">
+        <span class="im-label">순번 글자 크기</span>
+        <select id="imNumSize">
+          <option value="0.040">작게</option>
+          <option value="0.058">보통</option>
+          <option value="0.078" selected>크게</option>
+          <option value="0.105">아주 크게</option>
+        </select>
+        <span class="im-help">셀 크기에 비례합니다. 순번 표시를 켠 경우에만 적용</span>
+      </label>
     </div>
 
     <div class="im-checks">
       <label class="im-check">
         <input type="checkbox" id="imNumber" checked>
-        <span>순번 표시 (우측 하단에 1, 2, 3… 번호를 작게 넣기)</span>
+        <span>순번 표시 (우측 하단에 1, 2, 3… 번호 넣기)</span>
       </label>
       <label class="im-check">
         <input type="checkbox" id="imAuto" checked>
@@ -351,6 +362,7 @@ breadcrumb:
   var bgEl = $('imBg'), bgTextEl = $('imBgText');
   var qualEl = $('imQuality'), qualLabel = $('imQualityLabel');
   var numberEl = $('imNumber'), autoEl = $('imAuto'), perSheetEl = $('imPerSheet');
+  var numSizeEl = $('imNumSize');
 
   var MAX_AUTO_CELL = 1200;
   var MAX_CANVAS_SIDE = 16000;
@@ -596,6 +608,7 @@ breadcrumb:
       ratio: ratioEl.value,
       fit: fitEl.value,
       showNum: numberEl.checked,
+      numFactor: parseFloat(numSizeEl.value) || 0.078,
       quality: clampInt(qualEl.value, 50, 100, 92) / 100
     };
 
@@ -741,7 +754,7 @@ breadcrumb:
         if (item) {
           drawCell(ctx, item, x, y, cellW, cellH, cfg.ratio, cfg.fit);
           if (cfg.showNum) {
-            drawNumber(ctx, startIdx + row * cols + col + 1, x, y, cellW, cellH);
+            drawNumber(ctx, startIdx + row * cols + col + 1, x, y, cellW, cellH, cfg.numFactor);
           }
         }
         x += cellW + gap;
@@ -822,25 +835,31 @@ breadcrumb:
     }
   }
 
-  /* 순번을 셀의 우측 하단에 작게 표시 */
-  function drawNumber(ctx, num, x, y, cellW, cellH) {
-    var size = Math.max(11, Math.round(cellW * 0.038));
-    var padX = Math.round(size * 0.5);
+  /* 순번을 셀의 우측 하단에 표시 (크기는 factor로 조절) */
+  function drawNumber(ctx, num, x, y, cellW, cellH, factor) {
+    var f = factor || 0.078;
+    var size = Math.max(14, Math.round(cellW * f));
+    var padX = Math.round(size * 0.52);
     var padY = Math.round(size * 0.3);
-    var margin = Math.round(size * 0.5);
+    var margin = Math.round(size * 0.45);
     var label = String(num);
 
     ctx.save();
-    ctx.font = '700 ' + size + 'px "Noto Sans KR", sans-serif';
+    ctx.font = '700 ' + size + 'px "Noto Sans KR", "Malgun Gothic", sans-serif';
     ctx.textBaseline = 'top';
 
     var tw = ctx.measureText(label).width;
-    var bw = Math.round(tw + padX * 2);
+    var bw = Math.round(Math.max(tw + padX * 2, size + padY * 2));
     var bh = size + padY * 2;
     var bx = x + cellW - bw - margin;
     var by = y + cellH - bh - margin;
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
+    // 밝은 이미지 위에서도 구분되도록 살짝 그림자
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = Math.round(size * 0.35);
+    ctx.shadowOffsetY = Math.round(size * 0.06);
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
     if (ctx.roundRect) {
       ctx.beginPath();
       ctx.roundRect(bx, by, bw, bh, Math.round(bh / 2));
@@ -849,8 +868,12 @@ breadcrumb:
       ctx.fillRect(bx, by, bw, bh);
     }
 
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(label, bx + padX, by + padY);
+    ctx.fillText(label, bx + Math.round((bw - tw) / 2), by + padY);
     ctx.restore();
   }
 
@@ -971,7 +994,7 @@ breadcrumb:
 
   colsEl.addEventListener('change', function () { render(); onSettingChange(); });
   perSheetEl.addEventListener('change', function () { render(); onSettingChange(); });
-  [cellWEl, fitEl, gapEl, padEl, numberEl].forEach(function (el) {
+  [cellWEl, fitEl, gapEl, padEl, numberEl, numSizeEl].forEach(function (el) {
     el.addEventListener('change', onSettingChange);
   });
 
@@ -1012,7 +1035,8 @@ breadcrumb:
     <tr><td><strong>셀 비율 = 16:9 등</strong></td><td>모든 칸을 같은 비율로 통일. 크기가 다른 이미지를 격자로 깔끔하게 정렬할 때</td></tr>
     <tr><td><strong>꽉 채우기</strong></td><td>칸을 가득 채우되 가장자리가 일부 잘림</td></tr>
     <tr><td><strong>비율 유지</strong></td><td>이미지 전체가 보이되 여백이 생김</td></tr>
-    <tr><td><strong>순번 표시</strong></td><td><strong>우측 하단</strong>에 1, 2, 3… 번호를 작게 표시. 여러 장으로 나뉘어도 번호는 <strong>이어서</strong> 붙습니다 (2번째 시트는 9번부터) — <strong>스토리보드 정리에 유용</strong></td></tr>
+    <tr><td><strong>순번 표시</strong></td><td><strong>우측 하단</strong>에 1, 2, 3… 번호 표시. 여러 장으로 나뉘어도 번호는 <strong>이어서</strong> 붙습니다 (2번째 시트는 9번부터) — <strong>스토리보드 정리에 유용</strong></td></tr>
+    <tr><td><strong>순번 글자 크기</strong></td><td>작게 / 보통 / <strong>크게(기본)</strong> / 아주 크게 — 셀 크기에 비례해서 커집니다</td></tr>
   </tbody>
 </table>
 
