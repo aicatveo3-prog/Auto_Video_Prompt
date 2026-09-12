@@ -9,7 +9,8 @@ breadcrumb:
 <h1>🖼️ 이미지 합치기</h1>
 
 <blockquote>
-  <p>여러 이미지를 업로드하면 <strong>한 줄에 4개</strong>씩 배치해 아래로 이어붙인 뒤 <strong>JPG 한 장</strong>으로 저장합니다.<br>
+  <p>여러 이미지를 업로드하면 <strong>한 줄에 4개씩 · 총 8장을 한 시트</strong>로 묶어 <strong>JPG</strong>로 저장합니다.<br>
+  8장이 넘으면 <strong>자동으로 여러 장으로 나뉩니다</strong> (9~16번째는 2번째 시트로).<br>
   모든 처리는 <strong>내 브라우저 안에서만</strong> 실행됩니다. 이미지가 서버로 전송되지 않습니다.</p>
 </blockquote>
 
@@ -50,6 +51,12 @@ breadcrumb:
       <label class="im-field">
         <span class="im-label">한 줄에 몇 개 <em>(가로 개수)</em></span>
         <input type="number" id="imCols" value="4" min="1" max="12" step="1">
+      </label>
+
+      <label class="im-field">
+        <span class="im-label">한 장당 이미지 수 <em>(자동 분할)</em></span>
+        <input type="number" id="imPerSheet" value="8" min="0" max="64" step="1">
+        <span class="im-help">8이면 8장씩 묶어 여러 장으로 나눕니다. 0 = 전체를 한 장에</span>
       </label>
 
       <label class="im-field">
@@ -104,8 +111,8 @@ breadcrumb:
 
     <div class="im-checks">
       <label class="im-check">
-        <input type="checkbox" id="imNumber">
-        <span>순번 표시 (좌측 상단에 1, 2, 3… 번호 넣기)</span>
+        <input type="checkbox" id="imNumber" checked>
+        <span>순번 표시 (우측 하단에 1, 2, 3… 번호를 작게 넣기)</span>
       </label>
       <label class="im-check">
         <input type="checkbox" id="imAuto" checked>
@@ -305,6 +312,17 @@ breadcrumb:
 .im-preview canvas, .im-preview img { max-width: 100%; height: auto; border-radius: 6px; display: inline-block; }
 .im-preview-empty { color: var(--text-muted); font-size: .85rem; padding: 40px 10px; }
 
+/* 시트(결과 장) 단위 블록 */
+.im-sheet { text-align: left; }
+.im-sheet + .im-sheet { margin-top: 22px; padding-top: 20px; border-top: 1px dashed var(--border); }
+.im-sheet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.im-sheet-title { font-size: .88rem; font-weight: 600; color: var(--primary-light); }
+.im-sheet-info { font-size: .76rem; color: var(--text-muted); }
+.im-sheet-body { text-align: center; }
+
 @media (max-width: 600px) {
   .im-card { padding: 16px 14px 18px; }
   .im-list { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 9px; }
@@ -318,8 +336,7 @@ breadcrumb:
 
   var items = [];        // { id, name, img, w, h, url }
   var seq = 0;
-  var resultBlob = null;
-  var resultCanvas = null;
+  var results = [];      // { blob, url, w, h, cols, rows, count, from, to }
   var dragId = null;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -333,7 +350,7 @@ breadcrumb:
   var gapEl = $('imGap'), padEl = $('imPad');
   var bgEl = $('imBg'), bgTextEl = $('imBgText');
   var qualEl = $('imQuality'), qualLabel = $('imQualityLabel');
-  var numberEl = $('imNumber'), autoEl = $('imAuto');
+  var numberEl = $('imNumber'), autoEl = $('imAuto'), perSheetEl = $('imPerSheet');
 
   var MAX_AUTO_CELL = 1200;
   var MAX_CANVAS_SIDE = 16000;
@@ -407,8 +424,13 @@ breadcrumb:
     orderHint.hidden = false;
 
     var cols = clampInt(colsEl.value, 1, 12, 4);
-    var rows = Math.ceil(items.length / cols);
-    countEl.textContent = '이미지 ' + items.length + '장 · ' + cols + '열 × ' + rows + '행으로 배치됩니다.';
+    var per = clampInt(perSheetEl.value, 0, 64, 8);
+    if (per <= 0) per = items.length;
+    var sheets = Math.ceil(items.length / per);
+    var rowsPerSheet = Math.ceil(Math.min(per, items.length) / cols);
+
+    countEl.textContent = '이미지 ' + items.length + '장 · ' + cols + '열 × ' + rowsPerSheet + '행'
+      + (sheets > 1 ? ' · 결과 ' + sheets + '장으로 분할' : ' · 결과 1장');
 
     items.forEach(function (it, i) {
       var el = document.createElement('div');
@@ -532,9 +554,10 @@ breadcrumb:
   }
 
   function clearResult() {
-    resultBlob = null;
-    resultCanvas = null;
+    results.forEach(function (r) { if (r.url) URL.revokeObjectURL(r.url); });
+    results = [];
     dlBtn.disabled = true;
+    dlBtn.textContent = '⬇️ JPG 다운로드';
     metaEl.hidden = true;
     previewEl.innerHTML = '<div class="im-preview-empty">이미지를 업로드하고 <strong>🔗 이미지 합치기</strong>를 눌러주세요.</div>';
   }
@@ -565,13 +588,16 @@ breadcrumb:
       return;
     }
 
-    var cols = clampInt(colsEl.value, 1, 12, 4);
-    var gap = clampInt(gapEl.value, 0, 200, 8);
-    var pad = clampInt(padEl.value, 0, 200, 8);
-    var bg = bgEl.value || '#ffffff';
-    var ratio = ratioEl.value;
-    var fit = fitEl.value;
-    var showNum = numberEl.checked;
+    var cfg = {
+      cols: clampInt(colsEl.value, 1, 12, 4),
+      gap: clampInt(gapEl.value, 0, 200, 8),
+      pad: clampInt(padEl.value, 0, 200, 8),
+      bg: bgEl.value || '#ffffff',
+      ratio: ratioEl.value,
+      fit: fitEl.value,
+      showNum: numberEl.checked,
+      quality: clampInt(qualEl.value, 50, 100, 92) / 100
+    };
 
     // 셀 너비 결정
     var cellW = clampInt(cellWEl.value, 0, 4000, 0);
@@ -580,18 +606,92 @@ breadcrumb:
       items.forEach(function (it) { if (it.w > cellW) cellW = it.w; });
       cellW = Math.min(cellW, MAX_AUTO_CELL);
     }
-    if (cellW < 20) cellW = 20;
+    cfg.cellW = Math.max(20, cellW);
 
-    var rows = Math.ceil(items.length / cols);
+    // 한 장당 이미지 수로 분할
+    var perSheet = clampInt(perSheetEl.value, 0, 64, 8);
+    if (perSheet <= 0) perSheet = items.length;
+
+    var chunks = [];
+    for (var i = 0; i < items.length; i += perSheet) {
+      chunks.push({ list: items.slice(i, i + perSheet), start: i });
+    }
+
+    // 이전 결과 정리
+    results.forEach(function (r) { if (r.url) URL.revokeObjectURL(r.url); });
+    results = [];
+    dlBtn.disabled = true;
+
+    setStatus(chunks.length > 1
+      ? '이미지를 합치는 중… (총 ' + chunks.length + '장으로 분할)'
+      : '이미지를 합치는 중…');
+
+    renderSheet(0);
+
+    function renderSheet(si) {
+      if (si >= chunks.length) { finish(); return; }
+
+      var chunk = chunks[si];
+      var built = buildSheet(chunk.list, chunk.start, cfg);
+
+      if (built.error) {
+        setStatus(built.error, 'error');
+        return;
+      }
+
+      built.canvas.toBlob(function (blob) {
+        if (!blob) {
+          setStatus('이미지 생성에 실패했습니다. 셀 너비를 줄여서 다시 시도해주세요.', 'error');
+          return;
+        }
+        results.push({
+          blob: blob,
+          url: URL.createObjectURL(blob),
+          w: built.w, h: built.h,
+          cols: built.cols, rows: built.rows,
+          count: chunk.list.length,
+          from: chunk.start + 1,
+          to: chunk.start + chunk.list.length
+        });
+        renderSheet(si + 1);
+      }, 'image/jpeg', cfg.quality);
+    }
+
+    function finish() {
+      dlBtn.disabled = false;
+      dlBtn.textContent = results.length > 1
+        ? '⬇️ JPG ' + results.length + '장 모두 다운로드'
+        : '⬇️ JPG 다운로드';
+
+      paintResults();
+
+      var totalBytes = 0;
+      results.forEach(function (r) { totalBytes += r.blob.size; });
+
+      metaEl.hidden = false;
+      metaEl.innerHTML =
+        '<span>결과 <strong>' + results.length + '장</strong></span>' +
+        '<span>원본 이미지 <strong>' + items.length + '장</strong></span>' +
+        '<span>한 장당 <strong>' + cfg.cols + '열 × 최대 ' + Math.ceil(perSheet / cfg.cols) + '행</strong></span>' +
+        '<span>전체 용량 <strong>' + formatBytes(totalBytes) + '</strong></span>';
+
+      setStatus(results.length > 1
+        ? '완성! ' + results.length + '장으로 나뉘었습니다. 아래에서 개별 다운로드도 가능합니다.'
+        : '완성! 아래에서 확인하고 JPG로 다운로드하세요.', 'ok');
+    }
+  }
+
+  /* 시트 1장을 캔버스로 그리기 */
+  function buildSheet(list, startIdx, cfg) {
+    var cols = cfg.cols, gap = cfg.gap, pad = cfg.pad, cellW = cfg.cellW;
+    var rows = Math.ceil(list.length / cols);
     var rowHeights = [];
-    var fixedCellH = 0;
 
-    if (ratio === 'auto') {
-      // 행별로: 각 이미지를 셀 너비에 맞춰 축소했을 때의 최대 높이
+    if (cfg.ratio === 'auto') {
       for (var r = 0; r < rows; r++) {
         var maxH = 0;
         for (var c = 0; c < cols; c++) {
-          var it = items[r * cols + c];
+          var it = list[r * cols + c];
           if (!it) continue;
           var h = Math.round(cellW * (it.h / it.w));
           if (h > maxH) maxH = h;
@@ -599,26 +699,26 @@ breadcrumb:
         rowHeights.push(maxH || Math.round(cellW * 0.5625));
       }
     } else {
-      var parts = ratio.split(':');
+      var parts = cfg.ratio.split(':');
       var rw = parseFloat(parts[0]), rh = parseFloat(parts[1]);
-      fixedCellH = Math.round(cellW * (rh / rw));
-      for (var r2 = 0; r2 < rows; r2++) rowHeights.push(fixedCellH);
+      var fixedH = Math.round(cellW * (rh / rw));
+      for (var r2 = 0; r2 < rows; r2++) rowHeights.push(fixedH);
     }
 
-    var totalW = pad * 2 + cellW * cols + gap * (cols - 1);
+    // 마지막 행에만 이미지가 있는 열 수 → 빈 칸 여백 제거
+    var lastRowCount = list.length - (rows - 1) * cols;
+    var widestCols = (rows > 1) ? cols : lastRowCount;
+
+    var totalW = pad * 2 + cellW * widestCols + gap * (widestCols - 1);
     var totalH = pad * 2 + gap * (rows - 1);
     rowHeights.forEach(function (h) { totalH += h; });
 
     if (totalW > MAX_CANVAS_SIDE || totalH > MAX_CANVAS_SIDE) {
-      setStatus(
-        '결과 이미지가 너무 큽니다 (' + totalW + '×' + totalH + 'px). ' +
-        '셀 너비를 줄이거나 이미지 수를 줄여주세요. (한 변 최대 ' + MAX_CANVAS_SIDE + 'px)',
-        'error'
-      );
-      return;
+      return {
+        error: '결과 이미지가 너무 큽니다 (' + totalW + '×' + totalH + 'px). ' +
+               '셀 너비를 줄이거나 한 장당 이미지 수를 줄여주세요. (한 변 최대 ' + MAX_CANVAS_SIDE + 'px)'
+      };
     }
-
-    setStatus('이미지를 합치는 중…');
 
     var canvas = document.createElement('canvas');
     canvas.width = totalW;
@@ -628,7 +728,7 @@ breadcrumb:
     ctx.imageSmoothingQuality = 'high';
 
     // 배경 (JPG는 투명을 지원하지 않으므로 항상 채움)
-    ctx.fillStyle = bg;
+    ctx.fillStyle = cfg.bg;
     ctx.fillRect(0, 0, totalW, totalH);
 
     var y = pad;
@@ -637,42 +737,67 @@ breadcrumb:
       var x = pad;
 
       for (var col = 0; col < cols; col++) {
-        var item = items[row * cols + col];
+        var item = list[row * cols + col];
         if (item) {
-          drawCell(ctx, item, x, y, cellW, cellH, ratio, fit);
-          if (showNum) drawNumber(ctx, row * cols + col + 1, x, y, cellW);
+          drawCell(ctx, item, x, y, cellW, cellH, cfg.ratio, cfg.fit);
+          if (cfg.showNum) {
+            drawNumber(ctx, startIdx + row * cols + col + 1, x, y, cellW, cellH);
+          }
         }
         x += cellW + gap;
       }
       y += cellH + gap;
     }
 
-    var quality = clampInt(qualEl.value, 50, 100, 92) / 100;
+    return { canvas: canvas, w: totalW, h: totalH, cols: cols, rows: rows };
+  }
 
-    canvas.toBlob(function (blob) {
-      if (!blob) {
-        setStatus('이미지 생성에 실패했습니다. 셀 너비를 줄여서 다시 시도해주세요.', 'error');
-        return;
-      }
-      resultBlob = blob;
-      resultCanvas = canvas;
-      dlBtn.disabled = false;
+  /* 결과 미리보기 렌더 */
+  function paintResults() {
+    previewEl.innerHTML = '';
 
-      previewEl.innerHTML = '';
+    results.forEach(function (r, i) {
+      var sheet = document.createElement('div');
+      sheet.className = 'im-sheet';
+
+      var head = document.createElement('div');
+      head.className = 'im-sheet-head';
+
+      var titleWrap = document.createElement('div');
+
+      var title = document.createElement('div');
+      title.className = 'im-sheet-title';
+      title.textContent = results.length > 1
+        ? '📄 ' + (i + 1) + '장 / ' + results.length + '장  ·  이미지 ' + r.from + '~' + r.to + '번'
+        : '📄 결과 이미지';
+
+      var info = document.createElement('div');
+      info.className = 'im-sheet-info';
+      info.textContent = r.w + ' × ' + r.h + ' px  ·  ' + r.cols + '열 × ' + r.rows + '행  ·  ' + formatBytes(r.blob.size);
+
+      titleWrap.appendChild(title);
+      titleWrap.appendChild(info);
+
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'im-btn im-btn-ghost';
+      btn.textContent = '⬇️ 이 장만 다운로드';
+      btn.addEventListener('click', function () { downloadOne(i); });
+
+      head.appendChild(titleWrap);
+      head.appendChild(btn);
+
+      var body = document.createElement('div');
+      body.className = 'im-sheet-body';
       var img = new Image();
-      img.alt = '합쳐진 이미지 미리보기';
-      img.src = URL.createObjectURL(blob);
-      previewEl.appendChild(img);
+      img.alt = '합쳐진 이미지 ' + (i + 1);
+      img.src = r.url;
+      body.appendChild(img);
 
-      metaEl.hidden = false;
-      metaEl.innerHTML =
-        '<span>크기 <strong>' + totalW + ' × ' + totalH + ' px</strong></span>' +
-        '<span>배치 <strong>' + cols + '열 × ' + rows + '행</strong></span>' +
-        '<span>이미지 <strong>' + items.length + '장</strong></span>' +
-        '<span>용량 <strong>' + formatBytes(blob.size) + '</strong></span>';
-
-      setStatus('완성! 아래에서 확인하고 JPG로 다운로드하세요.', 'ok');
-    }, 'image/jpeg', quality);
+      sheet.appendChild(head);
+      sheet.appendChild(body);
+      previewEl.appendChild(sheet);
+    });
   }
 
   function drawCell(ctx, item, x, y, cellW, cellH, ratio, fit) {
@@ -697,22 +822,25 @@ breadcrumb:
     }
   }
 
-  function drawNumber(ctx, num, x, y, cellW) {
-    var size = Math.max(16, Math.round(cellW * 0.075));
-    var padX = Math.round(size * 0.45);
-    var padY = Math.round(size * 0.28);
+  /* 순번을 셀의 우측 하단에 작게 표시 */
+  function drawNumber(ctx, num, x, y, cellW, cellH) {
+    var size = Math.max(11, Math.round(cellW * 0.038));
+    var padX = Math.round(size * 0.5);
+    var padY = Math.round(size * 0.3);
+    var margin = Math.round(size * 0.5);
     var label = String(num);
 
     ctx.save();
     ctx.font = '700 ' + size + 'px "Noto Sans KR", sans-serif';
     ctx.textBaseline = 'top';
-    var tw = ctx.measureText(label).width;
-    var bw = tw + padX * 2;
-    var bh = size + padY * 2;
-    var bx = x + Math.round(size * 0.4);
-    var by = y + Math.round(size * 0.4);
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.62)';
+    var tw = ctx.measureText(label).width;
+    var bw = Math.round(tw + padX * 2);
+    var bh = size + padY * 2;
+    var bx = x + cellW - bw - margin;
+    var by = y + cellH - bh - margin;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
     if (ctx.roundRect) {
       ctx.beginPath();
       ctx.roundRect(bx, by, bw, bh, Math.round(bh / 2));
@@ -727,15 +855,52 @@ breadcrumb:
   }
 
   /* ── 다운로드 ──────────────────────────── */
-  function download() {
-    if (!resultBlob) return;
+  var stamp = null;
+
+  function fileNameFor(i) {
+    if (!stamp) stamp = timestamp();
+    if (results.length <= 1) return 'merged-' + stamp + '.jpg';
+    var n = String(i + 1);
+    if (results.length >= 10 && n.length < 2) n = '0' + n;
+    return 'merged-' + stamp + '-' + n + '.jpg';
+  }
+
+  function saveBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = URL.createObjectURL(resultBlob);
-    a.download = 'merged-' + timestamp() + '.jpg';
+    a.href = url;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(a.href); }, 3000);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function downloadOne(i) {
+    if (!results[i]) return;
+    saveBlob(results[i].blob, fileNameFor(i));
+  }
+
+  function downloadAll() {
+    if (!results.length) return;
+
+    if (results.length === 1) {
+      downloadOne(0);
+      return;
+    }
+
+    // 브라우저가 연속 다운로드를 차단하지 않도록 간격을 두고 저장
+    setStatus(results.length + '장을 순서대로 저장하는 중… 브라우저가 여러 파일 다운로드를 물어보면 허용해주세요.');
+    var i = 0;
+    (function next() {
+      if (i >= results.length) {
+        setStatus(results.length + '장 저장 완료!', 'ok');
+        return;
+      }
+      downloadOne(i);
+      i++;
+      setTimeout(next, 400);
+    })();
   }
 
   /* ── 이벤트 연결 ───────────────────────── */
@@ -772,7 +937,7 @@ breadcrumb:
   });
 
   mergeBtn.addEventListener('click', merge);
-  dlBtn.addEventListener('click', download);
+  dlBtn.addEventListener('click', downloadAll);
   $('imClear').addEventListener('click', clearAll);
   $('imSortName').addEventListener('click', function () {
     items.sort(function (a, b) { return a.name.localeCompare(b.name, 'ko', { numeric: true }); });
@@ -805,6 +970,7 @@ breadcrumb:
   });
 
   colsEl.addEventListener('change', function () { render(); onSettingChange(); });
+  perSheetEl.addEventListener('change', function () { render(); onSettingChange(); });
   [cellWEl, fitEl, gapEl, padEl, numberEl].forEach(function (el) {
     el.addEventListener('change', onSettingChange);
   });
@@ -840,12 +1006,13 @@ breadcrumb:
   </thead>
   <tbody>
     <tr><td><strong>한 줄에 몇 개</strong></td><td>가로로 배치할 이미지 수 (기본 4개)</td></tr>
+    <tr><td><strong>한 장당 이미지 수</strong></td><td>한 시트에 담을 이미지 수 (기본 8개 = 4열 × 2행). 넘으면 자동으로 여러 장으로 분할. <code>0</code>이면 전체를 한 장에</td></tr>
     <tr><td><strong>셀 너비</strong></td><td>각 이미지 칸의 너비. <code>0</code>이면 자동 (가장 큰 이미지 기준, 최대 1200px)</td></tr>
     <tr><td><strong>셀 비율 = 자동</strong></td><td>원본 비율을 그대로 유지. 행마다 높이가 자동으로 맞춰짐 <strong>(권장)</strong></td></tr>
     <tr><td><strong>셀 비율 = 16:9 등</strong></td><td>모든 칸을 같은 비율로 통일. 크기가 다른 이미지를 격자로 깔끔하게 정렬할 때</td></tr>
     <tr><td><strong>꽉 채우기</strong></td><td>칸을 가득 채우되 가장자리가 일부 잘림</td></tr>
     <tr><td><strong>비율 유지</strong></td><td>이미지 전체가 보이되 여백이 생김</td></tr>
-    <tr><td><strong>순번 표시</strong></td><td>좌측 상단에 1, 2, 3… 번호 표시 — <strong>스토리보드 정리에 유용</strong></td></tr>
+    <tr><td><strong>순번 표시</strong></td><td><strong>우측 하단</strong>에 1, 2, 3… 번호를 작게 표시. 여러 장으로 나뉘어도 번호는 <strong>이어서</strong> 붙습니다 (2번째 시트는 9번부터) — <strong>스토리보드 정리에 유용</strong></td></tr>
   </tbody>
 </table>
 
